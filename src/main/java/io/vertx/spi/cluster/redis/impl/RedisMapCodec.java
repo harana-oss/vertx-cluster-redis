@@ -25,6 +25,7 @@ import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
 import java.lang.reflect.Constructor;
 
+import org.nustaq.serialization.FSTConfiguration;
 import org.redisson.client.codec.Codec;
 import org.redisson.client.handler.State;
 import org.redisson.client.protocol.Decoder;
@@ -49,6 +50,7 @@ import io.vertx.core.shareddata.impl.ClusterSerializable;
  */
 class RedisMapCodec implements Codec {
   private static final Logger log = LoggerFactory.getLogger(RedisMapCodec.class);
+  private static final FSTConfiguration fstConf = FSTConfiguration.createDefaultConfiguration();
 
   private final Encoder encoder = new Encoder() {
     @Override
@@ -61,6 +63,7 @@ class RedisMapCodec implements Codec {
             ClusterSerializable clusterSerializable = (ClusterSerializable) in;
             dataOutput.writeBoolean(true);
             dataOutput.writeUTF(in.getClass().getName());
+
             Buffer buffer = Buffer.buffer();
             clusterSerializable.writeToBuffer(buffer);
             byte[] bytes = buffer.getBytes();
@@ -68,10 +71,7 @@ class RedisMapCodec implements Codec {
             dataOutput.write(bytes);
           } else {
             dataOutput.writeBoolean(false);
-            ByteArrayOutputStream javaByteOut = new ByteArrayOutputStream();
-            ObjectOutput objectOutput = new ObjectOutputStream(javaByteOut);
-            objectOutput.writeObject(in);
-            dataOutput.write(javaByteOut.toByteArray());
+            dataOutput.write(fstConf.asByteArray(in));
           }
           return os.buffer();
         }
@@ -113,8 +113,7 @@ class RedisMapCodec implements Codec {
         } else {
           byte[] body = new byte[in.available()];
           in.readFully(body);
-          ObjectInputStream objectIn = new ObjectInputStream(new ByteArrayInputStream(body));
-          return objectIn.readObject();
+          return fstConf.asObject(body);
         }
       } catch (Exception e) {
         log.warn("buf.class: {}, state: {}, error: {}", buf.getClass().getName(), state, e.toString());
